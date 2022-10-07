@@ -19,8 +19,8 @@ defmodule Stellar.PreAuthTx do
     # Secret Key  SBEQE23AMLO3EX6HGAL54TGZOUVJIFMT44KYQNPK3DLQVD75NORQ343Q
     {pk1, sk1} =
       keypair1 = {
-        "GBKF3TWYI73TZLO4SX4CG5EONLJW523356YWGLZ2IUCAOMFA65IEJXF7",
-        "SAJFIOMK7L7GFGDZLNLCHZ7UOBOQS64BH43A6BZUTOQR5G3GL7JKH4TB"
+        "GBF2MB6MFY52Z7OPKHFBIOBE5JOUOZH4NI6AWVC3CRPTGETT3Q7BNK63",
+        "SBV3ZTORJG6SI3NYDFZBL5EPFUGNWEPE3HS3WOMDUBDPWC3WBYKET4XA"
       }
 
     {pk2, sk2} =
@@ -58,12 +58,14 @@ defmodule Stellar.PreAuthTx do
       source_account
       |> Stellar.TxBuild.new(sequence_number: sequence_number, time_bounds: time_bounds)
       |> Stellar.TxBuild.add_operation(payment_op)
-      |> IO.inspect()
 
     # |> Stellar.TxBuild.sign([signature1, signature2])
 
     {:ok, envelope} = Stellar.TxBuild.envelope(tx_build)
+
+    IO.inspect("TX ENVELOPE ->")
     IO.inspect(envelope)
+    IO.inspect("TX HASH ->")
     IO.inspect(Stellar.TxBuild.Transaction.hash(tx))
   end
 
@@ -73,34 +75,41 @@ defmodule Stellar.PreAuthTx do
          keypair2: {pk2, sk2},
          time_bounds: time_bounds
        } = params do
-    IO.inspect(params)
+    # IO.inspect(params)
     # 1. SetOptions: set signed_payload signer
     source_account = Stellar.TxBuild.Account.new(pk1)
     {:ok, seq_num} = Stellar.Horizon.Accounts.fetch_next_sequence_number(pk1)
     sequence_number = Stellar.TxBuild.SequenceNumber.new(seq_num)
 
+    # Replace with the generated HASH
+    signer_key =
+      "42890b283cdcf16beed3afde9c06d830b9bf4762bbf77b31b5688477f61f861d"
+      |> Base.decode16!(case: :lower)
+      |>  StellarBase.StrKey.encode!(:pre_auth_tx)
+
     set_options_op =
       Stellar.TxBuild.SetOptions.new(
-        signer: {"TDBXU5VXD6WJY2RIGONCYXNPZT2VYVVKNBYLHX2HKLJZQHIUXAA4NU4X", 0}
+        signer: {signer_key, 1}
       )
 
     signature1 = Stellar.TxBuild.Signature.new(keypair1)
 
-    {:ok, envelope} =
-      source_account
+    {:ok, %Stellar.TxBuild{tx: tx}} =
+        tx_build =
+        source_account \
       |> Stellar.TxBuild.new(sequence_number: sequence_number, time_bounds: time_bounds)
       |> Stellar.TxBuild.add_operation(set_options_op)
       |> Stellar.TxBuild.sign(signature1)
-      |> Stellar.TxBuild.envelope()
 
-    IO.inspect(envelope)
-  end
+    hash_tx = Stellar.TxBuild.Transaction.hash(tx)
+    base_signature = Stellar.TxBuild.Transaction.base_signature(tx)
+    {:ok, envelope} = Stellar.TxBuild.envelope(tx_build)
 
-  test "compare txs from base64 xdr" do
-    tx_sdk = "AAAAAgAAAABUXc7YR/c8rdyV+CN0jmrTbut777FjLzpFBAcwoPdQRAAAAGQABOM0AAAABgAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAABAAAAAFRdzthH9zyt3JX4I3SOatNu63vvsWMvOkUEBzCg91BEAAAAAQAAAABExaVxY0XJXM5w/5hM1g9bvAPiwc4TJsikxdmHUYyfaAAAAAAAAAAAO5rKAAAAAAAAAAAA"
-    tx_lab = "AAAAAgAAAABUXc7YR/c8rdyV+CN0jmrTbut777FjLzpFBAcwoPdQRAAAAGQABOM0AAAABgAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAABAAAAAFRdzthH9zyt3JX4I3SOatNu63vvsWMvOkUEBzCg91BEAAAAAQAAAABExaVxY0XJXM5w/5hM1g9bvAPiwc4TJsikxdmHUYyfaAAAAAAAAAAAO5rKAAAAAAAAAAAA"
-
-    assert tx_sdk == tx_lab
-    # Stellar.TxBuild.TransactionEnvelope.from_base64()
+    IO.inspect(%{
+      envelope: envelope,
+      signer_key: signer_key,
+      hash_tx: hash_tx,
+      base_signature: base_signature
+    })
   end
 end
